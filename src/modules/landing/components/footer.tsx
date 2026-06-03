@@ -6,7 +6,6 @@ const footerLinks = {
     { label: 'Hospedagem', href: '/reservas' },
     { label: 'Eventos', href: '/eventos' },
     { label: 'Gastronomia', href: '/gastronomia' },
-    { label: 'Day Use', href: '#' },
   ],
   institucional: [
     { label: 'Sobre Nós', href: '/sobre' },

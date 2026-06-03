@@ -39,17 +39,6 @@ const experiences = [
     cta: 'Ver Cardápio',
     href: '/gastronomia',
   },
-  {
-    id: 'dayuse',
-    title: 'Day Use',
-    description:
-      'Passe o dia aproveitando toda a estrutura do Recanto Canaã. Piscina, trilhas, lago e muito mais.',
-    icon: Calendar,
-    image: 'https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=800',
-    cta: 'Em Breve',
-    href: '#',
-    disabled: true,
-  },
 ]
 
 export function ExperiencesSection() {
@@ -103,7 +92,7 @@ export function ExperiencesSection() {
         </div>
 
         {/* Experience Cards */}
-        <div className="grid gap-8 md:grid-cols-2">
+        <div className="grid gap-8 md:grid-cols-3">
           {experiences.map((exp, index) => {
             const Icon = exp.icon
             return (
