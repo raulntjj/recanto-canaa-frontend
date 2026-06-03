@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { format, addMonths, subMonths, isSameDay, isAfter, isBefore, startOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -31,7 +31,19 @@ interface BookingCalendarProps {
 
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 
-// Mock data para demonstração
+// Simple seeded random number generator for deterministic results
+const seededRandom = (seed: number): number => {
+  const x = Math.sin(seed * 9999) * 10000
+  return x - Math.floor(x)
+}
+
+// Get a stable initial date for SSR (start of the current month)
+const getInitialDate = () => {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0)
+}
+
+// Mock data para demonstração (deterministic based on date)
 const generateMockAvailability = (month: number, year: number): CalendarDay[] => {
   const days: CalendarDay[] = []
   const daysInMonth = new Date(year, month, 0).getDate()
@@ -41,18 +53,20 @@ const generateMockAvailability = (month: number, year: number): CalendarDay[] =>
     const dayOfWeek = new Date(year, month - 1, day).getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
     
-    // Simular disponibilidade aleatória
-    const rand = Math.random()
+    // Use deterministic random based on date seed
+    const seed = year * 10000 + month * 100 + day
+    const rand = seededRandom(seed)
     let status: CalendarDay['status'] = 'AVAILABLE'
     if (rand > 0.85) status = 'FULL'
     else if (rand > 0.7) status = 'PARTIAL'
     else if (rand > 0.95) status = 'BLOCKED'
     
+    const roomsSeed = seed + 1
     days.push({
       date,
       status,
       minPrice: isWeekend ? 450 : 350,
-      availableRooms: status === 'FULL' ? 0 : Math.floor(Math.random() * 8) + 1,
+      availableRooms: status === 'FULL' ? 0 : Math.floor(seededRandom(roomsSeed) * 8) + 1,
       isHighSeason: month === 12 || month === 1 || month === 7,
       isHoliday: day === 25 && month === 12,
     })
@@ -67,9 +81,17 @@ export function BookingCalendar({
   selectedCheckOut,
   onDateSelect,
   onMonthChange,
-  minDate = new Date(),
+  minDate,
 }: BookingCalendarProps) {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [currentDate, setCurrentDate] = useState(getInitialDate)
+  const [today, setToday] = useState<Date | null>(null)
+  
+  // Set today on client side only to avoid hydration mismatch
+  useEffect(() => {
+    setToday(new Date())
+  }, [])
+  
+  const effectiveMinDate = minDate || today || getInitialDate()
   const currentMonth = currentDate.getMonth() + 1
   const currentYear = currentDate.getFullYear()
 
@@ -96,7 +118,7 @@ export function BookingCalendar({
     if (day.status === 'BLOCKED' || day.status === 'FULL') return
     
     const clickedDate = new Date(day.date + 'T12:00:00')
-    if (isBefore(clickedDate, startOfDay(minDate))) return
+    if (isBefore(clickedDate, startOfDay(effectiveMinDate))) return
     
     onDateSelect(clickedDate)
   }
@@ -109,6 +131,9 @@ export function BookingCalendar({
   const isCheckIn = (date: Date) => selectedCheckIn && isSameDay(date, selectedCheckIn)
   const isCheckOut = (date: Date) => selectedCheckOut && isSameDay(date, selectedCheckOut)
 
+  const initialMonth = getInitialDate().getMonth() + 1
+  const initialYear = getInitialDate().getFullYear()
+
   return (
     <div className="w-full rounded-xl border bg-card p-4 shadow-sm">
       {/* Header */}
@@ -117,7 +142,7 @@ export function BookingCalendar({
           variant="ghost"
           size="icon"
           onClick={handlePreviousMonth}
-          disabled={currentMonth === new Date().getMonth() + 1 && currentYear === new Date().getFullYear()}
+          disabled={currentMonth === initialMonth && currentYear === initialYear}
         >
           <ChevronLeft className="h-5 w-5" />
         </Button>
@@ -152,7 +177,7 @@ export function BookingCalendar({
         {days.map((day, index) => {
           const dayDate = new Date(day.date + 'T12:00:00')
           const dayNumber = index + 1
-          const isPast = isBefore(dayDate, startOfDay(minDate))
+          const isPast = isBefore(dayDate, startOfDay(effectiveMinDate))
           const isDisabled = isPast || day.status === 'BLOCKED' || day.status === 'FULL'
           const isSelected = isCheckIn(dayDate) || isCheckOut(dayDate)
           const inRange = isInRange(dayDate)
