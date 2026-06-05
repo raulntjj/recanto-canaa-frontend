@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Playfair_Display, Inter } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { QueryProvider } from '@/core/providers/query-provider'
+import { SplashProvider } from '@/core/providers/splash-provider'
 import './globals.css'
 
 // Fonte elegante para títulos (Hotel Boutique Premium)
@@ -55,7 +56,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" className={`${playfair.variable} ${inter.variable} bg-background`}>
       <body className="font-sans antialiased">
-        <QueryProvider>{children}</QueryProvider>
+        <QueryProvider>
+          <SplashProvider>{children}</SplashProvider>
+        </QueryProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

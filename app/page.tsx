@@ -4,17 +4,20 @@ import { TestimonialsSection } from '@/modules/landing/components/testimonials-s
 import { FaqSection } from '@/modules/landing/components/faq-section'
 import { Header } from '@/modules/landing/components/header'
 import { Footer } from '@/modules/landing/components/footer'
+import { PageFadeWrapper } from '@/core/providers/splash-provider'
 
 export default function HomePage() {
   return (
     <>
       <Header />
-      <main>
-        <HeroSection />
-        <ExperiencesSection />
-        <TestimonialsSection />
-        <FaqSection />
-      </main>
+      <PageFadeWrapper>
+        <main>
+          <HeroSection />
+          <ExperiencesSection />
+          <TestimonialsSection />
+          <FaqSection />
+        </main>
+      </PageFadeWrapper>
       <Footer />
     </>
   )

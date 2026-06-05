@@ -48,15 +48,39 @@ const testimonials = [
 
 export function TestimonialsSection() {
   const sectionRef = useRef<HTMLElement>(null)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
+  const heightRef = useRef<number>(0)
+
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [visibleIndex, setVisibleIndex] = useState(0)
+  const [isTransitioning, setIsTransitioning] = useState(false)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
 
+  const handleIndexChange = (newIndex: number) => {
+    if (isTransitioning || newIndex === visibleIndex) return
+    setIsTransitioning(true)
+
+    heightRef.current = cardRef.current?.offsetHeight || 0
+
+    gsap.to(contentRef.current, {
+      opacity: 0,
+      y: -10,
+      duration: 0.2,
+      ease: 'power2.out',
+      onComplete: () => {
+        setVisibleIndex(newIndex)
+        setCurrentIndex(newIndex)
+      }
+    })
+  }
+
   const next = () => {
-    setCurrentIndex((prev) => (prev + 1) % testimonials.length)
+    handleIndexChange((visibleIndex + 1) % testimonials.length)
   }
 
   const prev = () => {
-    setCurrentIndex((prev) => (prev - 1 + testimonials.length) % testimonials.length)
+    handleIndexChange((visibleIndex - 1 + testimonials.length) % testimonials.length)
   }
 
   useEffect(() => {
@@ -64,7 +88,7 @@ export function TestimonialsSection() {
 
     const interval = setInterval(next, 5000)
     return () => clearInterval(interval)
-  }, [isAutoPlaying])
+  }, [isAutoPlaying, visibleIndex, isTransitioning])
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -82,7 +106,38 @@ export function TestimonialsSection() {
     return () => ctx.revert()
   }, [])
 
-  const currentTestimonial = testimonials[currentIndex]
+  useEffect(() => {
+    if (!cardRef.current || !contentRef.current) return
+
+    const startHeight = heightRef.current || cardRef.current.offsetHeight
+
+    // Reset height to auto to let browser measure new content
+    cardRef.current.style.height = 'auto'
+    const endHeight = cardRef.current.offsetHeight
+
+    // Animate height
+    gsap.fromTo(cardRef.current,
+      { height: startHeight },
+      { height: endHeight, duration: 0.4, ease: 'power2.out', clearProps: 'height' }
+    )
+
+    // Fade in new content
+    gsap.fromTo(contentRef.current,
+      { opacity: 0, y: 10 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.4,
+        ease: 'power2.out',
+        clearProps: 'opacity,transform',
+        onComplete: () => {
+          setIsTransitioning(false)
+        }
+      }
+    )
+  }, [visibleIndex])
+
+  const currentTestimonial = testimonials[visibleIndex]
 
   return (
     <section
@@ -112,7 +167,8 @@ export function TestimonialsSection() {
 
         {/* Testimonial Card */}
         <div
-          className="relative rounded-2xl bg-white/10 p-8 backdrop-blur-sm lg:p-12"
+          ref={cardRef}
+          className="relative rounded-2xl bg-white/10 p-8 backdrop-blur-sm lg:p-12 overflow-hidden"
           onMouseEnter={() => setIsAutoPlaying(false)}
           onMouseLeave={() => setIsAutoPlaying(true)}
         >
@@ -120,7 +176,7 @@ export function TestimonialsSection() {
           <Quote className="absolute top-6 left-6 h-12 w-12 text-primary-foreground/20" />
 
           {/* Content */}
-          <div className="relative text-center">
+          <div ref={contentRef} className="relative text-center">
             {/* Avatar */}
             <div className="mx-auto mb-6 h-20 w-20 overflow-hidden rounded-full ring-4 ring-primary-foreground/30">
               <img
@@ -171,7 +227,7 @@ export function TestimonialsSection() {
               {testimonials.map((_, index) => (
                 <button
                   key={index}
-                  onClick={() => setCurrentIndex(index)}
+                  onClick={() => handleIndexChange(index)}
                   className={`h-2 rounded-full transition-all ${
                     index === currentIndex
                       ? 'w-8 bg-primary-foreground'

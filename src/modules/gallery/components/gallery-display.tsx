@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import gsap from 'gsap'
 import { X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -92,11 +93,12 @@ const galleryImages = [
 interface GalleryGridProps {
   images: typeof galleryImages
   onImageClick: (index: number) => void
+  gridRef: React.RefObject<HTMLDivElement | null>
 }
 
-function GalleryGrid({ images, onImageClick }: GalleryGridProps) {
+function GalleryGrid({ images, onImageClick, gridRef }: GalleryGridProps) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    <div ref={gridRef} className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
       {images.map((image, index) => (
         <button
           key={image.id}
@@ -184,6 +186,7 @@ function Lightbox({ images, currentIndex, onClose, onPrev, onNext }: LightboxPro
 export function GalleryDisplay() {
   const [activeCategory, setActiveCategory] = useState('todos')
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
 
   const filteredImages =
     activeCategory === 'todos'
@@ -205,15 +208,41 @@ export function GalleryDisplay() {
     }
   }
 
+  const handleCategoryChange = (newCategory: string) => {
+    if (gridRef.current) {
+      gsap.to(gridRef.current, {
+        opacity: 0,
+        y: -10,
+        duration: 0.2,
+        ease: 'power2.out',
+        onComplete: () => {
+          setActiveCategory(newCategory)
+        }
+      })
+    } else {
+      setActiveCategory(newCategory)
+    }
+  }
+
+  // Fade-in grid when category changes
+  useEffect(() => {
+    if (gridRef.current) {
+      gsap.fromTo(gridRef.current,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+      )
+    }
+  }, [activeCategory])
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in-up">
       {/* Category Filter */}
       <div className="flex flex-wrap justify-center gap-2">
         {galleryCategories.map((category) => (
           <Button
             key={category.id}
             variant={activeCategory === category.id ? 'default' : 'outline'}
-            onClick={() => setActiveCategory(category.id)}
+            onClick={() => handleCategoryChange(category.id)}
             className="rounded-full"
           >
             {category.label}
@@ -222,7 +251,7 @@ export function GalleryDisplay() {
       </div>
 
       {/* Gallery Grid */}
-      <GalleryGrid images={filteredImages} onImageClick={openLightbox} />
+      <GalleryGrid images={filteredImages} onImageClick={openLightbox} gridRef={gridRef} />
 
       {/* Lightbox */}
       {lightboxIndex !== null && (

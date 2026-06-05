@@ -8,7 +8,18 @@ import { BedDouble, PartyPopper, UtensilsCrossed, Calendar } from 'lucide-react'
 
 gsap.registerPlugin(ScrollTrigger)
 
-const experiences = [
+interface ExperienceItem {
+  id: string
+  title: string
+  description: string
+  icon: any
+  image: string
+  cta: string
+  href: string
+  disabled?: boolean
+}
+
+const experiences: ExperienceItem[] = [
   {
     id: 'hospedagem',
     title: 'Hospedagem Premium',

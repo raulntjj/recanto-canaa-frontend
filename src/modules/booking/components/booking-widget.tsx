@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { gsap } from 'gsap'
 import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -131,20 +132,88 @@ const steps: { key: CheckoutStep; label: string; icon: typeof CalendarDays }[] =
 
 export function BookingWidget() {
   const store = useBookingStore()
-  const [localCheckIn, setLocalCheckIn] = useState<Date | null>(
-    store.checkIn ? new Date(store.checkIn) : null
-  )
-  const [localCheckOut, setLocalCheckOut] = useState<Date | null>(
-    store.checkOut ? new Date(store.checkOut) : null
-  )
+  const [mounted, setMounted] = useState(false)
+  const [localCheckIn, setLocalCheckIn] = useState<Date | null>(null)
+  const [localCheckOut, setLocalCheckOut] = useState<Date | null>(null)
   const [policyAccepted, setPolicyAccepted] = useState(false)
+
+  // Hydration sync
+  useEffect(() => {
+    setMounted(true)
+    if (store.checkIn) setLocalCheckIn(new Date(store.checkIn))
+    if (store.checkOut) setLocalCheckOut(new Date(store.checkOut))
+  }, [store.checkIn, store.checkOut])
 
   const nights =
     localCheckIn && localCheckOut
       ? differenceInDays(localCheckOut, localCheckIn)
       : 0
 
+  const [renderedStep, setRenderedStep] = useState<CheckoutStep>(store.currentStep)
+  const stepWrapperRef = useRef<HTMLDivElement>(null)
+  const heightRef = useRef<number>(0)
+
   const currentStepIndex = steps.findIndex((s) => s.key === store.currentStep)
+
+
+  // Step transition fade-out & scroll logic
+  useEffect(() => {
+    if (store.currentStep === renderedStep) return
+
+    // Capture start height
+    heightRef.current = stepWrapperRef.current?.offsetHeight || 0
+
+    // Smooth scroll to top of booking container with GSAP (custom ease and timing)
+    const targetElement = document.getElementById('booking-widget-container')
+    if (targetElement && typeof window !== 'undefined') {
+      const targetY = Math.max(0, targetElement.getBoundingClientRect().top + window.scrollY - 110)
+      const obj = { y: window.scrollY }
+      gsap.to(obj, {
+        y: targetY,
+        duration: 0.8,
+        ease: 'power2.out',
+        onUpdate: () => {
+          window.scrollTo(0, obj.y)
+        }
+      })
+    }
+
+    // Fade out old step
+    gsap.to(stepWrapperRef.current, {
+      opacity: 0,
+      y: -10,
+      duration: 0.25,
+      ease: 'power2.out',
+      onComplete: () => {
+        setRenderedStep(store.currentStep)
+      }
+    })
+  }, [store.currentStep, renderedStep])
+
+  // Step transition fade-in & height animation
+  useEffect(() => {
+    if (!stepWrapperRef.current) return
+
+    const startHeight = heightRef.current || stepWrapperRef.current.offsetHeight
+
+    // Temporarily set height to auto and opacity to 1 to measure natural height
+    stepWrapperRef.current.style.height = 'auto'
+    stepWrapperRef.current.style.opacity = '1'
+    const endHeight = stepWrapperRef.current.offsetHeight
+
+    // Animate height and fade in content
+    gsap.fromTo(stepWrapperRef.current,
+      { height: startHeight, opacity: 0, y: 12 },
+      {
+        height: endHeight,
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out',
+        clearProps: 'height,transform'
+      }
+    )
+  }, [renderedStep])
 
   const handleDateSelect = useCallback(
     (date: Date) => {
@@ -215,8 +284,32 @@ export function BookingWidget() {
     store.goToStep('confirmation')
   }
 
+  if (!mounted) {
+    return (
+      <div className="mx-auto max-w-6xl animate-pulse space-y-8">
+        {/* Skeleton Progress Steps */}
+        <div className="mb-8 overflow-x-auto">
+          <div className="flex min-w-max items-center justify-center gap-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="h-10 w-32 bg-muted rounded-full" />
+            ))}
+          </div>
+        </div>
+        {/* Skeleton Content */}
+        <div className="grid gap-8 lg:grid-cols-3">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="h-8 bg-muted rounded w-1/3" />
+            <div className="h-16 bg-muted rounded-lg" />
+            <div className="h-[400px] bg-muted rounded-lg" />
+          </div>
+          <div className="h-[300px] bg-muted rounded-lg" />
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="mx-auto max-w-6xl">
+    <div id="booking-widget-container" className="mx-auto max-w-6xl">
       {/* Progress Steps */}
       <div className="mb-8 overflow-x-auto">
         <div className="flex min-w-max items-center justify-center gap-2">
@@ -257,222 +350,224 @@ export function BookingWidget() {
       <div className="grid gap-8 lg:grid-cols-3">
         {/* Main Content */}
         <div className="lg:col-span-2">
-          {/* Step: Dates */}
-          {store.currentStep === 'dates' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-foreground">
-                  Selecione as datas
-                </h2>
-                <p className="mt-1 text-muted-foreground">
-                  Escolha o período da sua estadia no Recanto Canaã
-                </p>
-              </div>
-
-              {/* Guests selector */}
-              <Card>
-                <CardContent className="flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <Users className="h-5 w-5 text-muted-foreground" />
-                    <span className="font-medium">Número de hóspedes</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => store.setGuests(Math.max(1, store.guests - 1))}
-                      disabled={store.guests <= 1}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-8 text-center font-medium">{store.guests}</span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => store.setGuests(Math.min(10, store.guests + 1))}
-                      disabled={store.guests >= 10}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <BookingCalendar
-                selectedCheckIn={localCheckIn}
-                selectedCheckOut={localCheckOut}
-                onDateSelect={handleDateSelect}
-              />
-
-              {localCheckIn && localCheckOut && (
-                <div className="rounded-lg bg-primary/10 p-4 text-center">
-                  <p className="text-sm text-muted-foreground">Período selecionado</p>
-                  <p className="font-serif text-lg font-semibold text-foreground">
-                    {format(localCheckIn, "d 'de' MMMM", { locale: ptBR })} -{' '}
-                    {format(localCheckOut, "d 'de' MMMM", { locale: ptBR })}
-                  </p>
-                  <p className="text-sm text-primary">
-                    {nights} noite{nights > 1 ? 's' : ''}
+          <div ref={stepWrapperRef} className="overflow-hidden">
+            {/* Step: Dates */}
+            {renderedStep === 'dates' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-foreground">
+                    Selecione as datas
+                  </h2>
+                  <p className="mt-1 text-muted-foreground">
+                    Escolha o período da sua estadia no Recanto Canaã
                   </p>
                 </div>
-              )}
-            </div>
-          )}
 
-          {/* Step: Room */}
-          {store.currentStep === 'room' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-foreground">
-                  Escolha sua acomodação
-                </h2>
-                <p className="mt-1 text-muted-foreground">
-                  Selecione o quarto ou chalé ideal para sua estadia
-                </p>
-              </div>
+                {/* Guests selector */}
+                <Card>
+                  <CardContent className="flex items-center justify-between p-4">
+                    <div className="flex items-center gap-3">
+                      <Users className="h-5 w-5 text-muted-foreground" />
+                      <span className="font-medium">Número de hóspedes</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => store.setGuests(Math.max(1, store.guests - 1))}
+                        disabled={store.guests <= 1}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="w-8 text-center font-medium">{store.guests}</span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => store.setGuests(Math.min(10, store.guests + 1))}
+                        disabled={store.guests >= 10}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-              <RoomList
-                rooms={mockRooms}
-                selectedRoomId={store.selectedRoom?.id}
-                onSelectRoom={(room) => store.setSelectedRoom(room)}
-                nights={nights}
-              />
-            </div>
-          )}
+                <BookingCalendar
+                  selectedCheckIn={localCheckIn}
+                  selectedCheckOut={localCheckOut}
+                  onDateSelect={handleDateSelect}
+                />
 
-          {/* Step: Upgrades */}
-          {store.currentStep === 'upgrades' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-foreground">
-                  Personalize sua experiência
-                </h2>
-                <p className="mt-1 text-muted-foreground">
-                  Adicione serviços extras para tornar sua estadia ainda mais especial
-                </p>
-              </div>
-
-              <UpgradeSelector
-                services={mockUpgrades}
-                selectedUpgrades={store.selectedUpgrades}
-                onAddUpgrade={(service) => store.addUpgrade(service)}
-                onRemoveUpgrade={(id) => store.removeUpgrade(id)}
-                onUpdateQuantity={(id, qty) => store.updateUpgradeQuantity(id, qty)}
-              />
-            </div>
-          )}
-
-          {/* Step: Guest */}
-          {store.currentStep === 'guest' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-foreground">
-                  Seus dados
-                </h2>
-                <p className="mt-1 text-muted-foreground">
-                  Preencha os dados do hóspede principal
-                </p>
-              </div>
-
-              <GuestForm
-                initialData={store.guestInfo || undefined}
-                onSubmit={handleGuestSubmit}
-              />
-            </div>
-          )}
-
-          {/* Step: Payment */}
-          {store.currentStep === 'payment' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="font-serif text-2xl font-bold text-foreground">
-                  Confirmar reserva
-                </h2>
-                <p className="mt-1 text-muted-foreground">
-                  Revise os detalhes e aceite as políticas para confirmar
-                </p>
-              </div>
-
-              {/* Policy acceptance */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Política de Cancelamento</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
-                    <ul className="space-y-2">
-                      <li>
-                        <strong>Até 7 dias antes:</strong> Reembolso de 100% do valor
-                      </li>
-                      <li>
-                        <strong>De 7 a 3 dias antes:</strong> Reembolso de 50% do valor
-                      </li>
-                      <li>
-                        <strong>Menos de 3 dias:</strong> Sem reembolso
-                      </li>
-                    </ul>
+                {localCheckIn && localCheckOut && (
+                  <div className="rounded-lg bg-primary/10 p-4 text-center animate-fade-in-up">
+                    <p className="text-sm text-muted-foreground">Período selecionado</p>
+                    <p className="font-serif text-lg font-semibold text-foreground">
+                      {format(localCheckIn, "d 'de' MMMM", { locale: ptBR })} -{' '}
+                      {format(localCheckOut, "d 'de' MMMM", { locale: ptBR })}
+                    </p>
+                    <p className="text-sm text-primary">
+                      {nights} noite{nights > 1 ? 's' : ''}
+                    </p>
                   </div>
+                )}
+              </div>
+            )}
 
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="policy"
-                      checked={policyAccepted}
-                      onCheckedChange={(checked) => setPolicyAccepted(checked === true)}
-                    />
-                    <Label htmlFor="policy" className="text-sm leading-relaxed">
-                      Li e aceito as políticas de cancelamento e os termos de uso do
-                      Recanto Canaã.
-                    </Label>
+            {/* Step: Room */}
+            {renderedStep === 'room' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-foreground">
+                    Escolha sua acomodação
+                  </h2>
+                  <p className="mt-1 text-muted-foreground">
+                    Selecione o quarto ou chalé ideal para sua estadia
+                  </p>
+                </div>
+
+                <RoomList
+                  rooms={mockRooms}
+                  selectedRoomId={store.selectedRoom?.id}
+                  onSelectRoom={(room) => store.setSelectedRoom(room)}
+                  nights={nights}
+                />
+              </div>
+            )}
+
+            {/* Step: Upgrades */}
+            {renderedStep === 'upgrades' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-foreground">
+                    Personalize sua experiência
+                  </h2>
+                  <p className="mt-1 text-muted-foreground">
+                    Adicione serviços extras para tornar sua estadia ainda mais especial
+                  </p>
+                </div>
+
+                <UpgradeSelector
+                  services={mockUpgrades}
+                  selectedUpgrades={store.selectedUpgrades}
+                  onAddUpgrade={(service) => store.addUpgrade(service)}
+                  onRemoveUpgrade={(id) => store.removeUpgrade(id)}
+                  onUpdateQuantity={(id, qty) => store.updateUpgradeQuantity(id, qty)}
+                />
+              </div>
+            )}
+
+            {/* Step: Guest */}
+            {renderedStep === 'guest' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-foreground">
+                    Seus dados
+                  </h2>
+                  <p className="mt-1 text-muted-foreground">
+                    Preencha os dados do hóspede principal
+                  </p>
+                </div>
+
+                <GuestForm
+                  initialData={store.guestInfo || undefined}
+                  onSubmit={handleGuestSubmit}
+                />
+              </div>
+            )}
+
+            {/* Step: Payment */}
+            {renderedStep === 'payment' && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="font-serif text-2xl font-bold text-foreground">
+                    Confirmar reserva
+                  </h2>
+                  <p className="mt-1 text-muted-foreground">
+                    Revise os detalhes e aceite as políticas para confirmar
+                  </p>
+                </div>
+
+                {/* Policy acceptance */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">Política de Cancelamento</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-lg bg-muted/50 p-4 text-sm text-muted-foreground">
+                      <ul className="space-y-2">
+                        <li>
+                          <strong>Até 7 dias antes:</strong> Reembolso de 100% do valor
+                        </li>
+                        <li>
+                          <strong>De 7 a 3 dias antes:</strong> Reembolso de 50% do valor
+                        </li>
+                        <li>
+                          <strong>Menos de 3 dias:</strong> Sem reembolso
+                        </li>
+                      </ul>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="policy"
+                        checked={policyAccepted}
+                        onCheckedChange={(checked) => setPolicyAccepted(checked === true)}
+                      />
+                      <Label htmlFor="policy" className="text-sm leading-relaxed">
+                        Li e aceito as políticas de cancelamento e os termos de uso do
+                        Recanto Canaã.
+                      </Label>
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      disabled={!policyAccepted}
+                      onClick={handleConfirmBooking}
+                    >
+                      Confirmar Reserva
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Step: Confirmation */}
+            {renderedStep === 'confirmation' && (
+              <Card className="text-center">
+                <CardContent className="py-12">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                    <Check className="h-8 w-8 text-green-600" />
                   </div>
-
+                  <h2 className="font-serif text-2xl font-bold text-foreground">
+                    Reserva Confirmada!
+                  </h2>
+                  <p className="mt-2 text-muted-foreground">
+                    Sua reserva foi realizada com sucesso. Você receberá um email com
+                    todos os detalhes.
+                  </p>
+                  <div className="mt-6 rounded-lg bg-muted/50 p-4">
+                    <p className="text-sm text-muted-foreground">Código da reserva</p>
+                    <p className="font-mono text-2xl font-bold text-primary">
+                      REC-{new Date().getFullYear()}-{Math.floor(Math.random() * 10000).toString().padStart(4, '0')}
+                    </p>
+                  </div>
                   <Button
-                    className="w-full"
-                    size="lg"
-                    disabled={!policyAccepted}
-                    onClick={handleConfirmBooking}
+                    className="mt-6"
+                    variant="outline"
+                    onClick={() => store.reset()}
                   >
-                    Confirmar Reserva
+                    Fazer nova reserva
                   </Button>
                 </CardContent>
               </Card>
-            </div>
-          )}
-
-          {/* Step: Confirmation */}
-          {store.currentStep === 'confirmation' && (
-            <Card className="text-center">
-              <CardContent className="py-12">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-                  <Check className="h-8 w-8 text-green-600" />
-                </div>
-                <h2 className="font-serif text-2xl font-bold text-foreground">
-                  Reserva Confirmada!
-                </h2>
-                <p className="mt-2 text-muted-foreground">
-                  Sua reserva foi realizada com sucesso. Você receberá um email com
-                  todos os detalhes.
-                </p>
-                <div className="mt-6 rounded-lg bg-muted/50 p-4">
-                  <p className="text-sm text-muted-foreground">Código da reserva</p>
-                  <p className="font-mono text-2xl font-bold text-primary">
-                    REC-{new Date().getFullYear()}-{Math.floor(Math.random() * 10000).toString().padStart(4, '0')}
-                  </p>
-                </div>
-                <Button
-                  className="mt-6"
-                  variant="outline"
-                  onClick={() => store.reset()}
-                >
-                  Fazer nova reserva
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+            )}
+          </div>
 
           {/* Navigation */}
-          {store.currentStep !== 'confirmation' && store.currentStep !== 'guest' && (
+          {renderedStep !== 'confirmation' && renderedStep !== 'guest' && (
             <div className="mt-8 flex items-center justify-between">
               <Button
                 variant="ghost"

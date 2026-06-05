@@ -115,8 +115,8 @@ export function FaqSection() {
               </button>
 
               <div
-                className={`grid transition-all duration-300 ease-in-out ${
-                  openIndex === index ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                className={`grid transition-all duration-500 ease-[cubic-bezier(0.25,1,0.5,1)] ${
+                  openIndex === index ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                 }`}
               >
                 <div className="overflow-hidden">

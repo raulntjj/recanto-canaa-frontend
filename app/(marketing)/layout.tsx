@@ -1,5 +1,6 @@
 import { Header } from '@/modules/landing/components/header'
 import { Footer } from '@/modules/landing/components/footer'
+import { PageFadeWrapper } from '@/core/providers/splash-provider'
 
 export default function MarketingLayout({
   children,
@@ -8,8 +9,10 @@ export default function MarketingLayout({
 }) {
   return (
     <>
-      <Header />
-      {children}
+      <Header variant="solid" />
+      <div className="pt-24">
+        <PageFadeWrapper>{children}</PageFadeWrapper>
+      </div>
       <Footer />
     </>
   )

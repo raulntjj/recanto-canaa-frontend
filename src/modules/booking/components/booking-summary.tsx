@@ -1,6 +1,6 @@
 'use client'
 
-import { format } from 'date-fns'
+import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
   CalendarDays,
@@ -40,7 +40,7 @@ export function BookingSummary({
   pricing,
   compact = false,
 }: BookingSummaryProps) {
-  const nights = pricing?.nights || 0
+  const nights = pricing?.nights || (checkIn && checkOut ? differenceInDays(checkOut, checkIn) : 0)
   const subtotal = pricing?.subtotal || (room?.basePrice || 0) * nights
   const upgradesTotal = upgrades.reduce(
     (acc, u) => acc + u.service.price * u.quantity,
@@ -82,7 +82,7 @@ export function BookingSummary({
       <CardContent className="space-y-4">
         {/* Dates */}
         {checkIn && checkOut && (
-          <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
+          <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3 animate-fade-in-up">
             <CalendarDays className="h-5 w-5 text-muted-foreground" />
             <div className="flex-1">
               <div className="flex items-center gap-2 text-sm">
@@ -111,8 +111,8 @@ export function BookingSummary({
 
         {/* Room */}
         {room && (
-          <>
-            <Separator />
+          <div className="animate-fade-in-up">
+            <Separator className="my-4" />
             <div className="flex items-start gap-3">
               <BedDouble className="mt-0.5 h-5 w-5 text-muted-foreground" />
               <div className="flex-1">
@@ -125,13 +125,13 @@ export function BookingSummary({
                 R$ {subtotal.toLocaleString('pt-BR')}
               </p>
             </div>
-          </>
+          </div>
         )}
 
         {/* Upgrades */}
         {upgrades.length > 0 && (
-          <>
-            <Separator />
+          <div className="animate-fade-in-up">
+            <Separator className="my-4" />
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Sparkles className="h-4 w-4" />
@@ -152,7 +152,7 @@ export function BookingSummary({
                 </div>
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {/* Totals */}

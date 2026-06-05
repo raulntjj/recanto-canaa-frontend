@@ -55,7 +55,7 @@ export function RoomCard({ room, isSelected, onSelect, nights = 1 }: RoomCardPro
             <Mountain className="h-12 w-12 text-muted-foreground/50" />
           </div>
         )}
-        
+
         {/* Type Badge */}
         <Badge
           variant="secondary"
@@ -145,7 +145,7 @@ export function RoomList({
 }: RoomListProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         {[1, 2, 3].map((i) => (
           <Card key={i} className="animate-pulse">
             <div className="aspect-[4/3] bg-muted" />
@@ -175,7 +175,7 @@ export function RoomList({
   }
 
   return (
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-2 p-1">
       {rooms.map((room) => (
         <RoomCard
           key={room.id}

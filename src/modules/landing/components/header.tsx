@@ -13,9 +13,15 @@ const navLinks = [
   { label: 'Contato', href: '/contato' },
 ]
 
-export function Header() {
+interface HeaderProps {
+  variant?: 'transparent' | 'solid'
+}
+
+export function Header({ variant = 'transparent' }: HeaderProps) {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  
+  const isSolid = variant === 'solid' || isScrolled
 
   useEffect(() => {
     const handleScroll = () => {
@@ -30,7 +36,7 @@ export function Header() {
     <header
       className={cn(
         'fixed top-0 left-0 right-0 z-50 transition-all duration-300',
-        isScrolled
+        isSolid
           ? 'bg-card/95 py-3 shadow-lg backdrop-blur-md'
           : 'bg-transparent py-5'
       )}
@@ -41,13 +47,13 @@ export function Header() {
           <div
             className={cn(
               'flex h-10 w-10 items-center justify-center rounded-lg transition-colors',
-              isScrolled ? 'bg-primary' : 'bg-white/20 backdrop-blur-sm'
+              isSolid ? 'bg-primary' : 'bg-white/20 backdrop-blur-sm'
             )}
           >
             <span
               className={cn(
                 'font-serif text-lg font-bold',
-                isScrolled ? 'text-primary-foreground' : 'text-white'
+                isSolid ? 'text-primary-foreground' : 'text-white'
               )}
             >
               RC
@@ -56,7 +62,7 @@ export function Header() {
           <span
             className={cn(
               'hidden font-serif text-xl font-semibold sm:block',
-              isScrolled ? 'text-foreground' : 'text-white'
+              isSolid ? 'text-foreground' : 'text-white'
             )}
           >
             Recanto Canaã
@@ -71,7 +77,7 @@ export function Header() {
               href={link.href}
               className={cn(
                 'text-sm font-medium transition-colors hover:text-accent',
-                isScrolled ? 'text-foreground' : 'text-white/90'
+                isSolid ? 'text-foreground' : 'text-white/90'
               )}
             >
               {link.label}
@@ -85,7 +91,7 @@ export function Header() {
             href="tel:+5533999749636"
             className={cn(
               'flex items-center gap-2 text-sm font-medium transition-colors',
-              isScrolled ? 'text-muted-foreground hover:text-foreground' : 'text-white/80 hover:text-white'
+              isSolid ? 'text-muted-foreground hover:text-foreground' : 'text-white/80 hover:text-white'
             )}
           >
             <Phone className="h-4 w-4" />
@@ -104,7 +110,7 @@ export function Header() {
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className={cn(
             'flex h-10 w-10 items-center justify-center rounded-lg lg:hidden',
-            isScrolled ? 'text-foreground' : 'text-white'
+            isSolid ? 'text-foreground' : 'text-white'
           )}
           aria-label="Menu"
         >

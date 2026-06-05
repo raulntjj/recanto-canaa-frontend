@@ -1,7 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { format, addDays } from 'date-fns'
+import gsap from 'gsap'
 import { ptBR } from 'date-fns/locale'
 import {
   UtensilsCrossed,
@@ -28,7 +29,17 @@ const menuCategories = [
   { id: 'lanches', label: 'Lanches', icon: Leaf },
 ]
 
-const menuItems = {
+interface MenuItem {
+  id: string
+  name: string
+  description: string
+  price: number
+  image: string
+  tags: string[]
+  isSpecialty?: boolean
+}
+
+const menuItems: Record<string, MenuItem[]> = {
   almoco: [
     {
       id: '1',
@@ -148,17 +159,71 @@ const getDailyMenu = (date: Date) => {
 export function MenuDisplay() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [activeCategory, setActiveCategory] = useState('almoco')
+  const dailyCardRef = useRef<HTMLDivElement>(null)
+  const tabsContentRef = useRef<HTMLDivElement>(null)
 
   const dailyMenu = getDailyMenu(selectedDate)
 
+  const lastDirectionRef = useRef<'next' | 'prev'>('next')
+
   const navigateDate = (direction: 'prev' | 'next') => {
-    setSelectedDate((prev) =>
-      direction === 'next' ? addDays(prev, 1) : addDays(prev, -1)
-    )
+    lastDirectionRef.current = direction
+    const exitX = direction === 'next' ? -35 : 35
+
+    if (dailyCardRef.current) {
+      gsap.to(dailyCardRef.current, {
+        opacity: 0,
+        x: exitX,
+        duration: 0.2,
+        ease: 'power2.out',
+        onComplete: () => {
+          setSelectedDate((prev) => direction === 'next' ? addDays(prev, 1) : addDays(prev, -1))
+        }
+      })
+    } else {
+      setSelectedDate((prev) => direction === 'next' ? addDays(prev, 1) : addDays(prev, -1))
+    }
   }
 
+  // Daily card fade-in on date change with horizontal slide pagination feel
+  useEffect(() => {
+    if (dailyCardRef.current) {
+      const enterX = lastDirectionRef.current === 'next' ? 35 : -35
+      gsap.fromTo(dailyCardRef.current,
+        { opacity: 0, x: enterX },
+        { opacity: 1, x: 0, duration: 0.35, ease: 'power2.out', clearProps: 'x' }
+      )
+    }
+  }, [selectedDate])
+
+  const handleCategoryChange = (newCategory: string) => {
+    if (tabsContentRef.current) {
+      gsap.to(tabsContentRef.current, {
+        opacity: 0,
+        y: -10,
+        duration: 0.2,
+        ease: 'power2.out',
+        onComplete: () => {
+          setActiveCategory(newCategory)
+        }
+      })
+    } else {
+      setActiveCategory(newCategory)
+    }
+  }
+
+  // Tabs content fade-in on category change
+  useEffect(() => {
+    if (tabsContentRef.current) {
+      gsap.fromTo(tabsContentRef.current,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+      )
+    }
+  }, [activeCategory])
+
   return (
-    <div className="space-y-12">
+    <div className="space-y-12 animate-fade-in-up">
       {/* Daily Menu Section */}
       <section>
         <div className="mb-6 text-center">
@@ -186,7 +251,7 @@ export function MenuDisplay() {
         </div>
 
         {/* Daily Special Card */}
-        <Card className="mx-auto max-w-2xl overflow-hidden">
+        <Card ref={dailyCardRef} className="mx-auto max-w-2xl overflow-hidden">
           <div className="bg-gradient-to-r from-primary to-primary/80 p-6 text-primary-foreground">
             <div className="flex items-center justify-between">
               <div>
@@ -245,7 +310,7 @@ export function MenuDisplay() {
           </p>
         </div>
 
-        <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
+        <Tabs value={activeCategory} onValueChange={handleCategoryChange} className="w-full">
           <TabsList className="mx-auto mb-8 flex w-full max-w-md justify-center">
             {menuCategories.map((category) => {
               const Icon = category.icon
@@ -262,59 +327,61 @@ export function MenuDisplay() {
             })}
           </TabsList>
 
-          {menuCategories.map((category) => (
-            <TabsContent key={category.id} value={category.id}>
-              <div className="grid gap-6 md:grid-cols-2">
-                {menuItems[category.id as keyof typeof menuItems]?.map((item) => (
-                  <Card
-                    key={item.id}
-                    className={cn(
-                      'overflow-hidden transition-shadow hover:shadow-lg',
-                      item.isSpecialty && 'ring-2 ring-primary/20'
-                    )}
-                  >
-                    <div className="flex">
-                      <div className="relative h-32 w-32 flex-shrink-0 sm:h-40 sm:w-40">
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
-                        {item.isSpecialty && (
-                          <div className="absolute top-2 left-2">
-                            <Badge className="bg-primary">
-                              <Star className="mr-1 h-3 w-3" />
-                              Destaque
-                            </Badge>
-                          </div>
-                        )}
-                      </div>
-                      <CardContent className="flex flex-1 flex-col justify-between p-4">
-                        <div>
-                          <h3 className="font-serif text-lg font-semibold text-foreground">
-                            {item.name}
-                          </h3>
-                          <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
-                            {item.description}
-                          </p>
-                          <div className="mt-2 flex flex-wrap gap-1">
-                            {item.tags.map((tag) => (
-                              <Badge key={tag} variant="secondary" className="text-xs">
-                                {tag}
+          <div ref={tabsContentRef}>
+            {menuCategories.map((category) => (
+              <TabsContent key={category.id} value={category.id}>
+                <div className="grid gap-6 md:grid-cols-2">
+                  {menuItems[category.id as keyof typeof menuItems]?.map((item) => (
+                    <Card
+                      key={item.id}
+                      className={cn(
+                        'overflow-hidden transition-shadow hover:shadow-lg',
+                        item.isSpecialty && 'ring-2 ring-primary/20'
+                      )}
+                    >
+                      <div className="flex">
+                        <div className="relative h-32 w-32 flex-shrink-0 sm:h-40 sm:w-40">
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="h-full w-full object-cover"
+                          />
+                          {item.isSpecialty && (
+                            <div className="absolute top-2 left-2">
+                              <Badge className="bg-primary">
+                                <Star className="mr-1 h-3 w-3" />
+                                Destaque
                               </Badge>
-                            ))}
-                          </div>
+                            </div>
+                          )}
                         </div>
-                        <p className="mt-3 font-serif text-xl font-bold text-primary">
-                          R$ {item.price.toFixed(2).replace('.', ',')}
-                        </p>
-                      </CardContent>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-          ))}
+                        <CardContent className="flex flex-1 flex-col justify-between p-4">
+                          <div>
+                            <h3 className="font-serif text-lg font-semibold text-foreground">
+                              {item.name}
+                            </h3>
+                            <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                              {item.description}
+                            </p>
+                            <div className="mt-2 flex flex-wrap gap-1">
+                              {item.tags.map((tag) => (
+                                <Badge key={tag} variant="secondary" className="text-xs">
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                          <p className="mt-3 font-serif text-xl font-bold text-primary">
+                            R$ {item.price.toFixed(2).replace('.', ',')}
+                          </p>
+                        </CardContent>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </TabsContent>
+            ))}
+          </div>
         </Tabs>
       </section>
 

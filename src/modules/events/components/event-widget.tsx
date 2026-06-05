@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { gsap } from 'gsap'
 import { format, differenceInDays } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -38,7 +39,7 @@ const eventTypes = [
 ]
 
 const services = [
-  { id: 'buffet', label: 'Buffet Completo', icon: UtensilsCrossed },
+  // { id: 'buffet', label: 'Buffet Completo', icon: UtensilsCrossed },
   { id: 'decoracao', label: 'Decoração', icon: Sparkles },
   { id: 'som', label: 'Som e Iluminação', icon: Music },
   { id: 'foto', label: 'Fotografia', icon: Camera },
@@ -60,7 +61,70 @@ export function EventWidget() {
     store.formData.endDate ? new Date(store.formData.endDate) : null
   )
 
+  const [renderedStep, setRenderedStep] = useState<EventStep>(store.currentStep)
+  const stepWrapperRef = useRef<HTMLDivElement>(null)
+  const heightRef = useRef<number>(0)
+
   const currentStepIndex = steps.findIndex((s) => s.key === store.currentStep)
+
+  // Step transition fade-out & scroll logic
+  useEffect(() => {
+    if (store.currentStep === renderedStep) return
+
+    // Capture start height
+    heightRef.current = stepWrapperRef.current?.offsetHeight || 0
+
+    // Smooth scroll to top of event container with GSAP (custom ease and timing)
+    const targetElement = document.getElementById('event-widget-container')
+    if (targetElement && typeof window !== 'undefined') {
+      const targetY = Math.max(0, targetElement.getBoundingClientRect().top + window.scrollY - 110)
+      const obj = { y: window.scrollY }
+      gsap.to(obj, {
+        y: targetY,
+        duration: 0.8,
+        ease: 'power2.out',
+        onUpdate: () => {
+          window.scrollTo(0, obj.y)
+        }
+      })
+    }
+
+    // Fade out old step
+    gsap.to(stepWrapperRef.current, {
+      opacity: 0,
+      y: -10,
+      duration: 0.25,
+      ease: 'power2.out',
+      onComplete: () => {
+        setRenderedStep(store.currentStep)
+      }
+    })
+  }, [store.currentStep, renderedStep])
+
+  // Step transition fade-in & height animation
+  useEffect(() => {
+    if (!stepWrapperRef.current) return
+
+    const startHeight = heightRef.current || stepWrapperRef.current.offsetHeight
+
+    // Temporarily set height to auto and opacity to 1 to measure natural height
+    stepWrapperRef.current.style.height = 'auto'
+    stepWrapperRef.current.style.opacity = '1'
+    const endHeight = stepWrapperRef.current.offsetHeight
+
+    // Animate height and fade in content
+    gsap.fromTo(stepWrapperRef.current,
+      { height: startHeight, opacity: 0, y: 12 },
+      {
+        height: endHeight,
+        opacity: 1,
+        y: 0,
+        duration: 0.5,
+        ease: 'power2.out',
+        clearProps: 'height,transform'
+      }
+    )
+  }, [renderedStep])
 
   const handleDateSelect = useCallback(
     (date: Date) => {
@@ -125,7 +189,7 @@ export function EventWidget() {
   const days = localEventDate && localEndDate ? differenceInDays(localEndDate, localEventDate) + 1 : 1
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div id="event-widget-container" className="mx-auto max-w-4xl">
       {/* Progress Steps */}
       <div className="mb-8 overflow-x-auto">
         <div className="flex min-w-max items-center justify-center gap-2">
@@ -162,326 +226,328 @@ export function EventWidget() {
         </div>
       </div>
 
-      {/* Step: Info - Event Type */}
-      {store.currentStep === 'info' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="font-serif text-2xl font-bold text-foreground">
-              Qual tipo de evento?
-            </h2>
-            <p className="mt-1 text-muted-foreground">
-              Selecione o tipo de evento que deseja realizar no Recanto Canaã
-            </p>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {eventTypes.map((type) => {
-              const Icon = type.icon
-              const isSelected = store.formData.eventType === type.id
-
-              return (
-                <button
-                  key={type.id}
-                  onClick={() => store.updateFormData({ eventType: type.id })}
-                  className={cn(
-                    'flex flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all',
-                    isSelected
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
-                  )}
-                >
-                  <div
-                    className={cn(
-                      'flex h-14 w-14 items-center justify-center rounded-full',
-                      isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
-                    )}
-                  >
-                    <Icon className="h-7 w-7" />
-                  </div>
-                  <span className="font-medium">{type.label}</span>
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Step: Details - Date, Guests, Services */}
-      {store.currentStep === 'details' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="font-serif text-2xl font-bold text-foreground">
-              Detalhes do evento
-            </h2>
-            <p className="mt-1 text-muted-foreground">
-              Selecione a data e informe os detalhes do seu evento
-            </p>
-          </div>
-
-          {/* Guests selector */}
-          <Card>
-            <CardContent className="flex items-center justify-between p-4">
-              <div className="flex items-center gap-3">
-                <Users className="h-5 w-5 text-muted-foreground" />
-                <span className="font-medium">Número de convidados</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() =>
-                    store.updateFormData({
-                      guestCount: Math.max(10, store.formData.guestCount - 10),
-                    })
-                  }
-                  disabled={store.formData.guestCount <= 10}
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <span className="w-12 text-center font-medium">
-                  {store.formData.guestCount}
-                </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() =>
-                    store.updateFormData({
-                      guestCount: Math.min(500, store.formData.guestCount + 10),
-                    })
-                  }
-                  disabled={store.formData.guestCount >= 500}
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Overnight option */}
-          <Card>
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <BedDouble className="h-5 w-5 text-muted-foreground" />
-                  <span className="font-medium">Hospedagem para convidados?</span>
-                </div>
-                <Checkbox
-                  checked={store.formData.hasOvernight}
-                  onCheckedChange={(checked) =>
-                    store.updateFormData({ hasOvernight: checked === true })
-                  }
-                />
-              </div>
-              {store.formData.hasOvernight && (
-                <div className="flex items-center justify-between pl-8">
-                  <span className="text-sm text-muted-foreground">
-                    Quantos hóspedes?
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() =>
-                        store.updateFormData({
-                          overnightGuests: Math.max(
-                            0,
-                            store.formData.overnightGuests - 5
-                          ),
-                        })
-                      }
-                      disabled={store.formData.overnightGuests <= 0}
-                    >
-                      <Minus className="h-4 w-4" />
-                    </Button>
-                    <span className="w-10 text-center font-medium">
-                      {store.formData.overnightGuests}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() =>
-                        store.updateFormData({
-                          overnightGuests: Math.min(
-                            50,
-                            store.formData.overnightGuests + 5
-                          ),
-                        })
-                      }
-                      disabled={store.formData.overnightGuests >= 50}
-                    >
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Calendar */}
-          <EventCalendar
-            selectedStart={localEventDate}
-            selectedEnd={localEndDate}
-            onDateSelect={handleDateSelect}
-          />
-
-          {localEventDate && (
-            <div className="rounded-lg bg-primary/10 p-4 text-center">
-              <p className="text-sm text-muted-foreground">Data selecionada</p>
-              <p className="font-serif text-lg font-semibold text-foreground">
-                {format(localEventDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
-                {localEndDate &&
-                  ` - ${format(localEndDate, "d 'de' MMMM", { locale: ptBR })}`}
+      <div ref={stepWrapperRef} className="overflow-hidden">
+        {/* Step: Info - Event Type */}
+        {renderedStep === 'info' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-foreground">
+                Qual tipo de evento?
+              </h2>
+              <p className="mt-1 text-muted-foreground">
+                Selecione o tipo de evento que deseja realizar no Recanto Canaã
               </p>
-              {localEndDate && (
-                <p className="text-sm text-primary">
-                  {days} dia{days > 1 ? 's' : ''}
-                </p>
-              )}
             </div>
-          )}
 
-          {/* Services */}
-          <div>
-            <h3 className="mb-4 font-semibold text-foreground">
-              Serviços de interesse (opcional)
-            </h3>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {services.map((service) => {
-                const Icon = service.icon
-                const isSelected = store.formData.services.includes(service.id)
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {eventTypes.map((type) => {
+                const Icon = type.icon
+                const isSelected = store.formData.eventType === type.id
 
                 return (
                   <button
-                    key={service.id}
-                    onClick={() => toggleService(service.id)}
+                    key={type.id}
+                    onClick={() => store.updateFormData({ eventType: type.id })}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg border p-4 transition-all',
+                      'flex flex-col items-center gap-3 rounded-xl border-2 p-6 transition-all',
                       isSelected
                         ? 'border-primary bg-primary/5'
                         : 'border-border hover:border-primary/50'
                     )}
                   >
-                    <Icon
+                    <div
                       className={cn(
-                        'h-5 w-5',
-                        isSelected ? 'text-primary' : 'text-muted-foreground'
+                        'flex h-14 w-14 items-center justify-center rounded-full',
+                        isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted'
                       )}
-                    />
-                    <span className="font-medium">{service.label}</span>
-                    {isSelected && <Check className="ml-auto h-4 w-4 text-primary" />}
+                    >
+                      <Icon className="h-7 w-7" />
+                    </div>
+                    <span className="font-medium">{type.label}</span>
                   </button>
                 )
               })}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Step: Contact */}
-      {store.currentStep === 'contact' && (
-        <div className="space-y-6">
-          <div>
-            <h2 className="font-serif text-2xl font-bold text-foreground">
-              Seus dados de contato
-            </h2>
-            <p className="mt-1 text-muted-foreground">
-              Preencha seus dados para recebermos sua solicitação
-            </p>
+        {/* Step: Details - Date, Guests, Services */}
+        {renderedStep === 'details' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-foreground">
+                Detalhes do evento
+              </h2>
+              <p className="mt-1 text-muted-foreground">
+                Selecione a data e informe os detalhes do seu evento
+              </p>
+            </div>
+
+            {/* Guests selector */}
+            <Card>
+              <CardContent className="flex items-center justify-between p-4">
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-muted-foreground" />
+                  <span className="font-medium">Número de convidados</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() =>
+                      store.updateFormData({
+                        guestCount: Math.max(10, store.formData.guestCount - 10),
+                      })
+                    }
+                    disabled={store.formData.guestCount <= 10}
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <span className="w-12 text-center font-medium">
+                    {store.formData.guestCount}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() =>
+                      store.updateFormData({
+                        guestCount: Math.min(500, store.formData.guestCount + 10),
+                      })
+                    }
+                    disabled={store.formData.guestCount >= 500}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Overnight option */}
+            <Card>
+              <CardContent className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <BedDouble className="h-5 w-5 text-muted-foreground" />
+                    <span className="font-medium">Hospedagem para convidados?</span>
+                  </div>
+                  <Checkbox
+                    checked={store.formData.hasOvernight}
+                    onCheckedChange={(checked) =>
+                      store.updateFormData({ hasOvernight: checked === true })
+                    }
+                  />
+                </div>
+                {store.formData.hasOvernight && (
+                  <div className="flex items-center justify-between pl-8 animate-fade-in-up">
+                    <span className="text-sm text-muted-foreground">
+                      Quantos hóspedes?
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          store.updateFormData({
+                            overnightGuests: Math.max(
+                              0,
+                              store.formData.overnightGuests - 5
+                            ),
+                          })
+                        }
+                        disabled={store.formData.overnightGuests <= 0}
+                      >
+                        <Minus className="h-4 w-4" />
+                      </Button>
+                      <span className="w-10 text-center font-medium">
+                        {store.formData.overnightGuests}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          store.updateFormData({
+                            overnightGuests: Math.min(
+                              50,
+                              store.formData.overnightGuests + 5
+                            ),
+                          })
+                        }
+                        disabled={store.formData.overnightGuests >= 50}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Calendar */}
+            <EventCalendar
+              selectedStart={localEventDate}
+              selectedEnd={localEndDate}
+              onDateSelect={handleDateSelect}
+            />
+
+            {localEventDate && (
+              <div className="rounded-lg bg-primary/10 p-4 text-center animate-fade-in-up">
+                <p className="text-sm text-muted-foreground">Data selecionada</p>
+                <p className="font-serif text-lg font-semibold text-foreground">
+                  {format(localEventDate, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                  {localEndDate &&
+                    ` - ${format(localEndDate, "d 'de' MMMM", { locale: ptBR })}`}
+                </p>
+                {localEndDate && (
+                  <p className="text-sm text-primary">
+                    {days} dia{days > 1 ? 's' : ''}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Services */}
+            <div>
+              <h3 className="mb-4 font-semibold text-foreground">
+                Serviços de interesse (opcional)
+              </h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {services.map((service) => {
+                  const Icon = service.icon
+                  const isSelected = store.formData.services.includes(service.id)
+
+                  return (
+                    <button
+                      key={service.id}
+                      onClick={() => toggleService(service.id)}
+                      className={cn(
+                        'flex items-center gap-3 rounded-lg border p-4 transition-all',
+                        isSelected
+                          ? 'border-primary bg-primary/5'
+                          : 'border-border hover:border-primary/50'
+                      )}
+                    >
+                      <Icon
+                        className={cn(
+                          'h-5 w-5',
+                          isSelected ? 'text-primary' : 'text-muted-foreground'
+                        )}
+                      />
+                      <span className="font-medium">{service.label}</span>
+                      {isSelected && <Check className="ml-auto h-4 w-4 text-primary" />}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           </div>
+        )}
 
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome completo</Label>
-                <Input
-                  id="name"
-                  value={store.formData.name}
-                  onChange={(e) => store.updateFormData({ name: e.target.value })}
-                  placeholder="Seu nome"
-                />
-              </div>
+        {/* Step: Contact */}
+        {renderedStep === 'contact' && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="font-serif text-2xl font-bold text-foreground">
+                Seus dados de contato
+              </h2>
+              <p className="mt-1 text-muted-foreground">
+                Preencha seus dados para recebermos sua solicitação
+              </p>
+            </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
+            <Card>
+              <CardContent className="space-y-4 p-6">
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
+                  <Label htmlFor="name">Nome completo</Label>
                   <Input
-                    id="email"
-                    type="email"
-                    value={store.formData.email}
-                    onChange={(e) => store.updateFormData({ email: e.target.value })}
-                    placeholder="seu@email.com"
+                    id="name"
+                    value={store.formData.name}
+                    onChange={(e) => store.updateFormData({ name: e.target.value })}
+                    placeholder="Seu nome"
                   />
                 </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-mail</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={store.formData.email}
+                      onChange={(e) => store.updateFormData({ email: e.target.value })}
+                      placeholder="seu@email.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefone</Label>
+                    <Input
+                      id="phone"
+                      type="tel"
+                      value={store.formData.phone}
+                      onChange={(e) => store.updateFormData({ phone: e.target.value })}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Telefone</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    value={store.formData.phone}
-                    onChange={(e) => store.updateFormData({ phone: e.target.value })}
-                    placeholder="(00) 00000-0000"
+                  <Label htmlFor="message">Mensagem (opcional)</Label>
+                  <Textarea
+                    id="message"
+                    value={store.formData.message}
+                    onChange={(e) => store.updateFormData({ message: e.target.value })}
+                    placeholder="Conte mais sobre o seu evento..."
+                    rows={4}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="message">Mensagem (opcional)</Label>
-                <Textarea
-                  id="message"
-                  value={store.formData.message}
-                  onChange={(e) => store.updateFormData({ message: e.target.value })}
-                  placeholder="Conte mais sobre o seu evento..."
-                  rows={4}
-                />
-              </div>
+                <Button
+                  className="w-full"
+                  size="lg"
+                  onClick={handleSubmit}
+                  disabled={!canProceed()}
+                >
+                  Enviar Solicitação
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={handleSubmit}
-                disabled={!canProceed()}
-              >
-                Enviar Solicitação
+        {/* Step: Confirmation */}
+        {renderedStep === 'confirmation' && (
+          <Card className="text-center">
+            <CardContent className="py-12">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+                <Check className="h-8 w-8 text-green-600" />
+              </div>
+              <h2 className="font-serif text-2xl font-bold text-foreground">
+                Solicitação Enviada!
+              </h2>
+              <p className="mt-2 text-muted-foreground">
+                Recebemos sua solicitação de evento. Nossa equipe entrará em contato em
+                até 48 horas com um orçamento personalizado.
+              </p>
+              <div className="mt-6 rounded-lg bg-muted/50 p-4">
+                <p className="text-sm text-muted-foreground">Tipo de evento</p>
+                <p className="font-serif text-lg font-semibold text-foreground capitalize">
+                  {eventTypes.find((t) => t.id === store.formData.eventType)?.label ||
+                    store.formData.eventType}
+                </p>
+              </div>
+              <Button className="mt-6" variant="outline" onClick={() => store.reset()}>
+                Fazer nova solicitação
               </Button>
             </CardContent>
           </Card>
-        </div>
-      )}
-
-      {/* Step: Confirmation */}
-      {store.currentStep === 'confirmation' && (
-        <Card className="text-center">
-          <CardContent className="py-12">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
-              <Check className="h-8 w-8 text-green-600" />
-            </div>
-            <h2 className="font-serif text-2xl font-bold text-foreground">
-              Solicitação Enviada!
-            </h2>
-            <p className="mt-2 text-muted-foreground">
-              Recebemos sua solicitação de evento. Nossa equipe entrará em contato em
-              até 48 horas com um orçamento personalizado.
-            </p>
-            <div className="mt-6 rounded-lg bg-muted/50 p-4">
-              <p className="text-sm text-muted-foreground">Tipo de evento</p>
-              <p className="font-serif text-lg font-semibold text-foreground capitalize">
-                {eventTypes.find((t) => t.id === store.formData.eventType)?.label ||
-                  store.formData.eventType}
-              </p>
-            </div>
-            <Button className="mt-6" variant="outline" onClick={() => store.reset()}>
-              Fazer nova solicitação
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+        )}
+      </div>
 
       {/* Navigation */}
-      {store.currentStep !== 'confirmation' && store.currentStep !== 'contact' && (
+      {renderedStep !== 'confirmation' && renderedStep !== 'contact' && (
         <div className="mt-8 flex items-center justify-between">
           <Button
             variant="ghost"
